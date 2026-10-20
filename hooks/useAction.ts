@@ -1,13 +1,19 @@
 'use client';
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/utils';
 
-// Run an async action, remember its error message, and (optionally) reload afterwards
-export function useAction(after?: () => unknown) {
+export function useAction() {
   const [message, setMessage] = useState('');
-  const run = async (fn: () => Promise<unknown>) => {
+  const mutation = useMutation({ mutationFn: (action: () => Promise<unknown>) => action() });
+
+  const run = async (action: () => Promise<unknown>) => {
     setMessage('');
-    try { await fn(); await after?.(); } catch (e) { setMessage(errorMessage(e)); }
+    try {
+      await mutation.mutateAsync(action);
+    } catch (e) {
+      setMessage(errorMessage(e));
+    }
   };
-  return { run, message, clear: () => setMessage('') };
+  return { run, message, clear: () => setMessage(''), busy: mutation.isPending };
 }

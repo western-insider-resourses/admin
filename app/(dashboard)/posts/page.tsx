@@ -1,25 +1,25 @@
 'use client';
-import { admin } from '@/lib/client';
 import { SITE_URL } from '@/lib/api';
-import { cl, fmtDate } from '@/lib/utils';
-import { useAdminData } from '@/hooks/useAdminData';
+import { cl, errorMessage, fmtDate } from '@/lib/utils';
 import { useAction } from '@/hooks/useAction';
+import { useDeletePost, usePosts } from '@/hooks/api/usePosts';
 import { Badge, Button, Card, Notice, PageTitle } from '@/components/ui';
 import type { AdminPostRow } from '@/lib/types';
 
 export default function Posts() {
-  const { data, error, reload } = useAdminData<AdminPostRow[]>('/posts');
-  const { run, message } = useAction(reload);
+  const { data, error } = usePosts();
+  const deletePost = useDeletePost();
+  const { run, message } = useAction();
 
   async function remove(p: AdminPostRow) {
     if (!confirm(`Delete "${p.title}"? Its images, comments and likes are deleted too.`)) return;
-    await run(() => admin(`/posts/${p.id}`, { method: 'DELETE' }));
+    await run(() => deletePost.mutateAsync(p.id));
   }
 
   return (
     <>
       <PageTitle action={<Button href="/posts/new" variant="primary">Write a story</Button>}>Stories</PageTitle>
-      <Notice error={error || message} />
+      <Notice error={(error ? errorMessage(error) : '') || message} />
       <Card className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-mute">

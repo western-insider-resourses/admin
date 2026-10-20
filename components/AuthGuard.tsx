@@ -1,20 +1,18 @@
 'use client';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { checkSession } from '@/lib/auth';
+import { useAuthSession } from '@/hooks/api/useAuth';
+import { getErrorMessage } from '@/services/Client';
+import { Notice } from '@/components/ui';
 
-// Renders its children only when the API confirms the HttpOnly session cookie.
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const { data: authenticated, error } = useAuthSession();
+
   useEffect(() => {
-    let active = true;
-    void checkSession().then((authenticated) => {
-      if (!active) return;
-      if (authenticated) setReady(true);
-      else router.replace('/login');
-    });
-    return () => { active = false; };
-  }, [router]);
-  return ready ? <>{children}</> : null;
+    if (authenticated === null) router.replace('/login');
+  }, [authenticated, router]);
+
+  if (error) return <div className="p-6"><Notice error={getErrorMessage(error)} /></div>;
+  return authenticated ? <>{children}</> : null;
 }

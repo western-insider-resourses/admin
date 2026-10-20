@@ -1,9 +1,15 @@
 'use client';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { admin, uploadImages } from '@/lib/client';
+import {
+  useCreatePost,
+  usePost,
+  useUpdatePost,
+} from '@/hooks/api/usePosts';
+import { useCategories } from '@/hooks/api/useCategories';
+import { useRemoveUpload, useUploadImages } from '@/hooks/api/useUploads';
 import { cl, errorMessage } from '@/lib/utils';
-import type { AdminCategory, AdminPostDetail } from '@/lib/types';
+import type { AdminPostPayload } from '@/services/api/types';
 import { Button, Card, Notice, SelectField, TextArea, TextField } from '@/components/ui';
 
 interface FormImage { url: string; public_id: string | null; caption: string }
@@ -18,21 +24,23 @@ const empty: FormState = { title: '', excerpt: '', body: '', categoryId: '', sta
 export default function PostForm({ id }: { id?: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const pendingUploadIds = useRef(new Set<string>());
   const [f, setF] = useState<FormState>(empty);
-  const [cats, setCats] = useState<AdminCategory[]>([]);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const categoriesQuery = useCategories();
+  const postQuery = usePost(id ?? '');
+  const uploadMutation = useUploadImages();
+  const removeUpload = useRemoveUpload();
+  const createPost = useCreatePost();
+  const updatePost = useUpdatePost();
 
   useEffect(() => {
-    admin<AdminCategory[]>('/categories').then(setCats).catch((e: unknown) => setError(errorMessage(e)));
-    if (id) {
-      admin<AdminPostDetail>(`/posts/${id}`).then((p) => setF({
-        title: p.title, excerpt: p.excerpt, body: p.body, categoryId: p.category_id || '',
-        status: p.status, featured: p.featured, author: p.author, images: p.images,
-      })).catch((e: unknown) => setError(errorMessage(e)));
-    }
-  }, [id]);
+    const post = postQuery.data;
+    if (post) setF({
+      title: post.title, excerpt: post.excerpt, body: post.body, categoryId: post.category_id || '',
+      status: post.status, featured: post.featured, author: post.author, images: post.images,
+    });
+  }, [postQuery.data]);
 
   const set = (k: keyof FormState) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: e.target instanceof HTMLInputElement && e.target.type === 'checkbox' ? e.target.checked : e.target.value });
@@ -43,11 +51,12 @@ export default function PostForm({ id }: { id?: string }) {
     if (!files.length) return;
     const room = 3 - f.images.length;
     if (files.length > room) { setError(`A story can have at most 3 images. You can add ${room} more.`); return; }
-    setUploading(true); setError('');
+    setError('');
     try {
-      const uploaded = await uploadImages(files);
+      const uploaded = await uploadMutation.mutateAsync(files);
+      uploaded.forEach((image) => pendingUploadIds.current.add(image.public_id));
       setF((s) => ({ ...s, images: [...s.images, ...uploaded.map((u) => ({ ...u, caption: '' }))] }));
-    } catch (err) { setError(errorMessage(err)); } finally { setUploading(false); }
+    } catch (err) { setError(errorMessage(err)); }
   }
 
   const move = (i: number, d: number) => setF((s) => {
@@ -58,25 +67,52 @@ export default function PostForm({ id }: { id?: string }) {
     return { ...s, images: imgs };
   });
   const caption = (i: number, v: string) => setF((s) => ({ ...s, images: s.images.map((im, k) => (k === i ? { ...im, caption: v } : im)) }));
-  const removeImg = (i: number) => setF((s) => ({ ...s, images: s.images.filter((_, k) => k !== i) }));
+  async function removeImg(i: number) {
+    const image = f.images[i];
+    if (image?.public_id && pendingUploadIds.current.has(image.public_id)) {
+      try {
+        await removeUpload.mutateAsync({ public_id: image.public_id });
+        pendingUploadIds.current.delete(image.public_id);
+      } catch (err) {
+        setError(errorMessage(err));
+        return;
+      }
+    }
+    setF((s) => ({ ...s, images: s.images.filter((_, k) => k !== i) }));
+  }
 
   async function save(status?: 'draft' | 'published') {
     setError('');
     if (!f.title.trim()) return setError('Add a title.');
     if (f.images.length < 1) return setError('Add at least 1 image (up to 3).');
-    setBusy(true);
+    const payload: AdminPostPayload = {
+      title: f.title,
+      excerpt: f.excerpt,
+      body: f.body,
+      categoryId: f.categoryId || null,
+      status: status || f.status,
+      featured: f.featured,
+      author: f.author,
+      images: f.images,
+    };
     try {
-      const body = { ...f, status: status || f.status };
-      if (id) await admin(`/posts/${id}`, { method: 'PUT', body });
-      else await admin('/posts', { method: 'POST', body });
+      if (id) await updatePost.mutateAsync({ id, payload });
+      else await createPost.mutateAsync(payload);
+      pendingUploadIds.current.clear();
       router.push('/posts');
-    } catch (err) { setError(errorMessage(err)); setBusy(false); }
+    } catch (err) {
+      setError(errorMessage(err));
+    }
   }
+
+  const cats = categoriesQuery.data ?? [];
+  const busy = createPost.isPending || updatePost.isPending;
+  const uploading = uploadMutation.isPending;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
-        <Notice error={error} />
+        <Notice error={error || (categoriesQuery.error ? errorMessage(categoriesQuery.error) : '') || (postQuery.error ? errorMessage(postQuery.error) : '')} />
         <TextField label="Title" className="[&_input]:text-lg" value={f.title} onChange={set('title')} />
         <TextArea label="Summary" hint="(shown on cards and in link previews)" maxLength={400} value={f.excerpt} onChange={set('excerpt')} />
         <TextArea label="Story" className="[&_textarea]:min-h-96 [&_textarea]:leading-relaxed" value={f.body} onChange={set('body')}
@@ -110,7 +146,7 @@ export default function PostForm({ id }: { id?: string }) {
               <div className="mt-2 flex gap-2">
                 <Button disabled={i === 0} onClick={() => move(i, -1)}>Move up</Button>
                 <Button disabled={i === f.images.length - 1} onClick={() => move(i, 1)}>Move down</Button>
-                <Button variant="danger" className="ml-auto" onClick={() => removeImg(i)}>Remove</Button>
+                <Button variant="danger" className="ml-auto" disabled={removeUpload.isPending} onClick={() => void removeImg(i)}>Remove</Button>
               </div>
             </div>
           ))}

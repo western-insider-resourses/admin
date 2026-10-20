@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Playfair_Display, Inter } from 'next/font/google';
 import './globals.css';
 import { SITE_NAME } from '@/lib/api';
+import QueryProvider from '@/components/QueryProvider';
 
 const serif = Playfair_Display({ subsets: ['latin'], variable: '--font-serif', weight: ['600', '700', '800'] });
 const sans = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable}`}>
-      <body>{children}</body>
+      <body><QueryProvider>{children}</QueryProvider></body>
     </html>
   );
 }

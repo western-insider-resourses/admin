@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
-import type { AdsenseData } from '@/lib/types';
-import { useAdminData } from '@/hooks/useAdminData';
+import { errorMessage } from '@/lib/utils';
+import { useAdsense } from '@/hooks/api/useAnalytics';
 import { Card, Notice, PageTitle, Stat } from '@/components/ui';
 
 export default function AdSense() {
   const [range, setRange] = useState('30d');
-  const { data, error } = useAdminData<AdsenseData>(`/adsense?range=${range}`);
+  const { data, error } = useAdsense(range);
   const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: data?.currency || 'USD' }).format(n);
 
   return (
@@ -15,7 +15,7 @@ export default function AdSense() {
         <select className="input w-auto" value={range} onChange={(e) => setRange(e.target.value)} aria-label="Date range">
           <option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="month">This month</option>
         </select>}>AdSense earnings</PageTitle>
-      <Notice error={error} />
+      <Notice error={error ? errorMessage(error) : ''} />
       {data && !data.configured && (
         <Card className="max-w-2xl p-6">
           <h2 className="font-serif text-xl font-bold">Connect your AdSense account</h2>

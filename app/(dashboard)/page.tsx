@@ -1,15 +1,15 @@
 'use client';
 import { useState } from 'react';
 import { SITE_URL } from '@/lib/api';
-import type { Analytics } from '@/lib/types';
-import { useAdminData } from '@/hooks/useAdminData';
+import { errorMessage } from '@/lib/utils';
+import { useAnalytics } from '@/hooks/api/useAnalytics';
 import BarChart from '@/components/BarChart';
 import RankedList from '@/components/RankedList';
 import { Card, Notice, PageTitle, Stat } from '@/components/ui';
 
 export default function Dashboard() {
   const [days, setDays] = useState(30);
-  const { data, error } = useAdminData<Analytics>(`/analytics?days=${days}`);
+  const { data, error } = useAnalytics(days);
 
   return (
     <>
@@ -17,7 +17,7 @@ export default function Dashboard() {
         <select className="input w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Date range">
           <option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option>
         </select>}>Traffic</PageTitle>
-      <Notice error={error} />
+      <Notice error={error ? errorMessage(error) : ''} />
       {data && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
