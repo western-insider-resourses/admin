@@ -28,9 +28,12 @@ export default function Shell({ children }: { children: ReactNode }) {
   const email = session?.email ?? 'Admin account';
   const initials = getProfileInitials(session?.email);
 
-  useEffect(() => {
+  // Close the profile menu whenever the route changes (adjusting state during render, not in an effect)
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setProfileMenuOpen(false);
-  }, [pathname]);
+  }
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -91,7 +94,7 @@ export default function Shell({ children }: { children: ReactNode }) {
               </div>
               <Link role="menuitem" href="/profile" onClick={() => setProfileMenuOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:outline-none">Profile</Link>
-              
+
               <div className="my-1 border-t border-slate-100" />
               <button role="menuitem" type="button" disabled={logoutMutation.isPending} onClick={signOut}
                 className="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 focus:bg-rose-50 focus:outline-none disabled:opacity-60">

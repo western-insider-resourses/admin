@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useCreatePost,
@@ -34,13 +34,16 @@ export default function PostForm({ id }: { id?: string }) {
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
 
-  useEffect(() => {
-    const post = postQuery.data;
-    if (post) setF({
+  // Fill the form when the post loads or changes (adjusting state during render, not in an effect)
+  const post = postQuery.data;
+  const [loadedPost, setLoadedPost] = useState<typeof post>(undefined);
+  if (post && post !== loadedPost) {
+    setLoadedPost(post);
+    setF({
       title: post.title, excerpt: post.excerpt, body: post.body, categoryId: post.category_id || '',
       status: post.status, featured: post.featured, author: post.author, images: post.images,
     });
-  }, [postQuery.data]);
+  }
 
   const set = (k: keyof FormState) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: e.target instanceof HTMLInputElement && e.target.type === 'checkbox' ? e.target.checked : e.target.value });
@@ -141,6 +144,7 @@ export default function PostForm({ id }: { id?: string }) {
           <p className="text-xs text-mute">1 to 3 images. The first one is the cover.</p>
           {f.images.map((im, i) => (
             <div key={im.url} className="rounded-lg border border-slate-200 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={cl(im.url, 400)} alt="" className="h-32 w-full rounded object-cover" />
               <input className="input mt-2" placeholder="Caption (optional)" value={im.caption} onChange={(e) => caption(i, e.target.value)} />
               <div className="mt-2 flex gap-2">
